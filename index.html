@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+    <style>
+        
+        path {
+            stroke: #fff;
+            fill-rule: evenodd;
+        }
+        
+        text {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+        }
+        
+        /*add tooltip*/
+        div.tooltip {
+            position: absolute;
+            top: 50px;
+            right: 3%;
+            -moz-border-radius:5px;
+            border-radius: 0px;
+            border: 2px solid rgba(127, 35, 183, 1);
+            background: #f3f3f3;
+            opacity: .9;
+            color: black;
+            padding: 10px;
+            width: 400px;
+			height: 400px;
+            font: 12px sans-serif;
+            font-size: 14px;
+            z-index: 10;
+			box-shadow: 5px 5px 20px #888888;
+        }
+        
+        .tooltip .title {
+            font-size: 13px;
+        }
+        
+        .tooltip .name {
+            font-weight:bold;
+            font-size: 15px;
+        }
+        
+		.polygon:hover {
+		fill: yellow;
+		}
+        </style>
+    <body>
+		<script type="text/javascript" src="base.js"></script>
+		<script type="text/javascript" src="DataStructures.Tree.js"></script>
+        <script src="http://d3js.org/d3.v3.min.js"></script>
+        <script>
+            
+            var width = 700,
+            height = 700,
+            radius = Math.min(width, height) / 2;
+            
+            var x = d3.scale.linear()
+            .range([0, 2 * Math.PI]);
+            
+            var y = d3.scale.linear()
+            .range([0, radius]);
+            
+            var color = d3.scale.category20c();
+            
+            var svg = d3.select("body").append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .append("g")
+            .attr("transform", "translate(" + width / 2 + "," + (height / 2 + 10) + ")");
+            
+            var partition = d3.layout.partition()
+            .value(function(d) { return d.size; }); //so the sizes of each node will be decided by its "size" attribute.
+            
+            /*Tooltip definition */
+            var div = d3.select("body").append("div")
+			.attr("class", "tooltip")
+            .style("opacity", 1)
+			.html("<b>Pune's Budget : Electricity Related Expenditures</b><br>Move your mouse over the diagram to see the details. Clicking on a section will take you deeper in. Clicking in the center will move you back up one level.");
+            
+            
+            var arc = d3.svg.arc()
+            .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
+            .endAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
+            .innerRadius(function(d) { return Math.max(0, y(d.y)); })
+            .outerRadius(function(d) { return Math.max(0, y(d.y + d.dy)); });
+            //d3.json("electrical4.json", function(error, root) { //default datafile is mydata.json
+			// injecting from the line below...
+d3.csv("electrical5.csv", function(data){
+var tree = DataStructures.Tree.createFromFlatTable(data),
+            root = tree.toSimpleObject(function(objectToDecorate, originalNode) {
+                objectToDecorate.size = originalNode.size;
+                if (objectToDecorate.children && objectToDecorate.children.length == 0) {
+                    delete objectToDecorate.children;
+                }
+                return objectToDecorate;
+            }); // ..to this line. */
+                    var g = svg.selectAll("g")
+                    .data(partition.nodes(root))
+                    .enter().append("g");
+                    
+                                       
+                    var path = g.append("path")
+                    .attr("d", arc)
+                    .style("fill", function(d, i) { return color(i); })
+                    .on("click", click)
+                     /*The following two '.on' attributes for tooltip*/
+                    .on("mouseover", function(d) {
+                        div.html(displayonpanel(d));
+						
+                        /*.style("left", (d3.event.pageX) + "px")
+                        .style("top", (d3.event.pageY - 28) + "px");
+						//Removing this part as it's redundant : we don't WANT the info to show up anywhere near the mouse; it's supposed to be at a fixed place on the page, away from the diagram but still visible to the user. Its position will be defined in the stylesheet for div.tooltip at the top.
+						*/
+						//console.log(d.name + " x=" + d3.event.pageX+ ", y=" + d3.event.pageY); //debugging
+                        })
+                    .on("mouseout", function(d) {
+						/*div.transition()
+                        .duration(500)
+                        .style("opacity", 1); //what if I don't want it to disappear??
+						*/
+                        });
+                    /*
+                    var text = g.append("text")
+                    .attr("transform", function(d) { return "translate(" + arc.centroid(d) + ")rotate(" + computeTextRotation(d) + ")"; })
+                    .attr('text-anchor', function (d) { return computeTextRotation(d) > 180 ? "end" : "start"; })
+                    .attr("dx", "6") // margin
+                    .attr("dy", ".35em") // vertical-align
+                    .attr("pointer-events", "none")
+                    .text(function(d) { return d.childDesc; }); // #### TEXT LABEL ##### originally d.childDesc
+                    */
+                    function click(d) {
+                    // fade out all text elements
+                    /*text.transition().attr("opacity", 0);*/
+                    
+                    path.transition()
+                    .duration(750)
+                    .attrTween("d", arcTween(d))
+                    /*
+					.each("end", function(e, i) {
+                          // check if the animated element's data e lies within the visible angle span given in d
+                          if (e.x >= d.x && e.x < (d.x + d.dx)) {
+                          // get a selection of the associated text element
+						  
+                          var arcText = d3.select(this.parentNode).select("text");
+                          // fade in the text element and recalculate positions
+                          arcText.transition().duration(750)
+                          .attr("opacity", 1)
+                          .attr("transform", function(d) { return "translate(" + arc.centroid(d) + ")rotate(" + computeTextRotation(d) + ")"; })
+                          .attr('text-anchor', function (d) { return computeTextRotation(d) > 180 ? "end" : "start"; })
+                          }
+                          })
+						  */
+						  ;
+                    }
+                    });
+            
+            d3.select(self.frameElement).style("height", height + "px");
+          
+            // Interpolate the scales!
+            function arcTween(d) {
+                var xd = d3.interpolate(x.domain(), [d.x, d.x + d.dx]),
+                yd = d3.interpolate(y.domain(), [d.y, 1]),
+                yr = d3.interpolate(y.range(), [d.y ? 20 : 0, radius]);
+                return function(d, i) {
+                    return i
+                    ? function(t) { return arc(d); }
+                    : function(t) { x.domain(xd(t)); y.domain(yd(t)).range(yr(t)); return arc(d); };
+                };
+            }
+            
+            function computeTextRotation(d) {
+                var ang = (x(d.x + d.dx / 2) - Math.PI / 2) / Math.PI * 180;
+                //return (ang > 90) ? 180 + ang : ang;
+                return 0;
+            }
+		/*Nikhil : writing this function to display number in more realistic terms */
+		function easynumber(F) {
+			if(!F) return "";
+			else if(F >= 10000000 ) return "Rs." + F/10000000 + " crore";
+			else if(F >= 100000 ) return "Rs." + F/100000 + " lakh";
+			else if(F >= 1000 ) return "Rs." + F/1000 + " thousand";
+			else return F;
+			}
+function displayonpanel(d) {
+var TITLE = "<b>Work: " + d.name + "</b><br>Department: " + d.department + "<br>Work code: " + d.workcode + ", Parent code: " + d.parentcode + "<br>";
+var NUMBERS = "";
+if(d.size) NUMBERS += "Budget Amount: " + easynumber(d.size) + " (" + d.size + ")<br>";
+if(d.totalorextract == "E") NUMBERS += "This is an Extract from a larger budget head.<br>Estimated total: " + easynumber(d.total) + " (" + d.total + ")<br>";
+else if(d.totalorextract == "T") NUMBERS += "Budgeted total: " + easynumber(d.total) + " (" + d.total + ")<br>";
+var REFERENCE = "";
+if(d.pages) REFERENCE = "<br>Reference: page no. " + d.pages + " (right side of / is PDF page number)";
+return TITLE + "<br>" + NUMBERS + REFERENCE + "<br><br><br>Move your mouse over the diagram to see the details. Clicking on a section will take you deeper in. Clicking in the center will move you up one level."
+}
+</script>
+<p>Electrical budget of Pune, 2014-15</p></body>
